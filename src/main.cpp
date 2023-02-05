@@ -87,7 +87,7 @@ bool is_code_opt_set(pcre2_code *code, std::uint32_t opt, std::uint32_t where = 
     return (get_code_opt(code, where) & opt) != 0;
 }
 
-struct Mathcher {
+struct Matcher {
 private:
     pcre2_code *m_code;
     pcre2_match_data *m_data;
@@ -98,7 +98,7 @@ private:
     bool m_first_match = true;
 
 public:
-    Mathcher(pcre2_code *code, pcre2_match_data *data, std::string_view subj)
+    Matcher(pcre2_code *code, pcre2_match_data *data, std::string_view subj)
             : m_code(code)
             , m_data(data)
             , m_subj(subj) {
@@ -169,6 +169,7 @@ int main(int argc, char **argv) {
     std::istream *file = nullptr;
     if (args.input_file) {
         file = new std::ifstream(*args.input_file);
+        if (!file->good()) error<Err::IO>("Could not open file `{}`", *args.input_file);
     } else {
         file = &std::cin;
     }
@@ -186,7 +187,7 @@ int main(int argc, char **argv) {
     std::string line;
     while (std::getline(*file, line)) {
         // Create matchers for each code
-        std::vector<Mathcher> matchers;
+        std::vector<Matcher> matchers;
         for (size_t i = 0; i < codes.size(); i++)
             matchers.emplace_back(codes[i].get(), data[i].get(), line);
 
@@ -203,20 +204,36 @@ int main(int argc, char **argv) {
 
         char const *prev_end = line.data();
         while (!done()) {
-            auto const next_match_ = std::min_element(std::begin(next_matches),
+            auto next_match_ = std::min_element(std::begin(next_matches),
                 std::end(next_matches),
                 [](BeginEnd *a, BeginEnd *b) { return a && b ? a->first < b->first : bool(a); });
-            size_t const match_idx = static_cast<size_t>(next_match_ - next_matches.begin());
-            auto const next_match = *next_match_;
 
-            auto strstart = line.data() + next_match->first;
-            auto len = next_match->second - next_match->first;
+            size_t const match_idx = static_cast<size_t>(next_match_ - next_matches.begin());
+            auto *next_match = *next_match_;
+
+            size_t begin = next_match->first;
+            size_t end = next_match->second;
+            bool need_next_match = true;
+            for (size_t i = 0; auto *m : next_matches) {
+                if (i != match_idx && m) {
+                    if (m->first < end) {
+                        end = m->first;
+                        next_match->first = m->second;
+                        need_next_match = false;
+                    }
+                }
+                i++;
+            }
+
+            auto strstart = line.data() + begin;
+            auto len = end - begin;
+            assert(prev_end <= strstart);
             std::string_view nomatch {prev_end, strstart};
             std::string_view match {strstart, len};
             fmt::print("{}", nomatch);
             fmt::print(fg(args.cols[match_idx]), "{}", match);
             prev_end = strstart + len;
-            next_matches[match_idx] = matchers[match_idx].find_next();
+            if (need_next_match) next_matches[match_idx] = matchers[match_idx].find_next();
         }
         std::string_view rest {prev_end, line.end().base()};
         fmt::print("{}\n", rest);

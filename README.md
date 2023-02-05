@@ -1,30 +1,23 @@
 # colorcode
 
-Colourise input based on a regular expression. Like grep, but more colourful.
-
 <div align="center">
   <img src="https://github.com/dk949/colorcode/blob/trunk/screenshot_0.png" width=75% alt="Screenshot"/>
 </div>
 
+Colourise input based on a regular expression. Like grep, but more colourful.
+
 ## Build
 
-### Setup VCPKG
-
 ```sh
+# Setup VCPKG
 git clone "https://github.com/Microsoft/vcpkg.git"
 ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
 ./vcpkg/vcpkg install
-```
 
-## Setup Cmake
-
-```sh
+# Setup Cmake
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-```
 
-## Build and run
-
-```sh
+# Build and install
 cmake --build build
-./build/bin/colorcode
+cmake --install --prefix /preferred/install/location
 ```

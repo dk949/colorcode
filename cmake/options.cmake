@@ -15,7 +15,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin CACHE STRING "executa
 
 
 # Analysers
-option(ENABLE_CPPCHECK "Enable cppcheck" ON)
+option(ENABLE_CPPCHECK "Enable cppcheck" OFF)
 option(ENABLE_CLANG_TIDY "Enable clang-tidy" OFF)
 option(ENABLE_INCLUDE_WHAT_YOU_USE "Enable include-what-you-use" OFF)
 

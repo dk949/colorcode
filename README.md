@@ -25,5 +25,3 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ./build/bin/colorcode
 ```
-
-See [Configuration options](Configuration-options) to change executable name.

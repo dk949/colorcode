@@ -22,11 +22,13 @@ constexpr Size fnv_1a(char const *data) {
     return hash;
 }
 
-class Args {
+struct Args {
+public:
     std::vector<char const *> res;
     std::vector<fmt::color> cols;
     std::optional<char const *> input_file;
 
+private:
     [[noreturn]] static void help() {
         (void)colorcode::project::dirs::src;
         fmt::print(
@@ -92,12 +94,13 @@ public:
                                     error<Err::ARGUMENT>("Expected agrument of the form `-color:regex`. See `--help`");
                                 if (argv[i][j] == ':') {
                                     argv[i][j] = 0;
-                                    col_pos = j;
+                                    col_pos = j + 1;
                                     break;
                                 }
                             }
                             fmt::color col = str_to_color(argv[i]);
                             res.push_back(argv[i] + col_pos);
+                            fmt::print("argv[i] = {}, col_pos = {}\n", argv[i], col_pos);
                             cols.push_back(col);
                         }
                         break;

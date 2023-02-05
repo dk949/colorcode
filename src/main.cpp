@@ -1,5 +1,5 @@
-#include "err.hpp"
 #include "args.hpp"
+#include "err.hpp"
 
 #include <fmt/color.h>
 #include <pcre2.h>
@@ -27,17 +27,6 @@ Cras euismod apple Lemon purus Orange suscipit. Phasellus nunc arcu, commodo a l
 Apple
 Ut lemon nibh ante. Mauris efficitur diam Lemon urna tristique pellentesque quis sit amet lemon Sed in Lemon orange Curabitur Orange nibh posuere, consequat erat sed, Orange ante. Morbi consectetur magna a Lemon lemon sed aliquet Apple Lemon Suspendisse sit amet quam Lemon lemon turpis ut, luctus diam. Integer orange Apple et diam Lemon aliquam ac Orange mi. Apple eu auctor tortor. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lemon maximus Lemon vitae purus luctus sodales. Donec vel tristique diam. apple nisl lectus, blandit nec pretium non, lemon sit amet lacus.
 )";
-
-char const *res[] = {
-    "[Aa]pple",
-    "[Oo]range",
-    "[Ll]emon",
-};
-fmt::color cols[] = {
-    fmt::color::red,
-    fmt::color::orange,
-    fmt::color::yellow,
-};
 
 using Code = std::unique_ptr<pcre2_code, decltype(pcre2_code_free) *>;
 using MatchData = std::unique_ptr<pcre2_match_data, decltype(pcre2_match_data_free) *>;
@@ -188,26 +177,34 @@ start:
 };
 
 int main(int argc, char **argv) {
-    [[maybe_unused]] auto const args = Args(argc, argv);
+    auto const args = Args(argc, argv);
     auto const test_string_sv = std::string_view {test_string};
+    fmt::print("res = {}\n", fmt::join(args.res, ", "));
+
+    // Make codes from regex strings
     std::vector<Code> codes;
-    for (size_t i = 0; i < 3; i++)
-        codes.emplace_back(make_code(res[i]));
+    for (auto const &re : args.res)
+        codes.emplace_back(make_code(re));
 
+    // Reserve space for match data
     std::vector<MatchData> data;
-    for (size_t i = 0; i < 3; i++)
-        data.emplace_back(make_match_data(codes[i].get()));
+    for (auto const &code : codes)
+        data.emplace_back(make_match_data(code.get()));
 
+
+    // Create matchers for each code
     std::vector<Mathcher> matchers;
-    for (size_t i = 0; i < 3; i++)
+    for (size_t i = 0; i < codes.size(); i++)
         matchers.emplace_back(codes[i].get(), data[i].get(), test_string_sv);
 
-    BeginEnd *next_matches[3];
-    for (size_t i = 0; i < 3; i++)
-        next_matches[i] = matchers[i].find_next();
+    std::vector<BeginEnd *> next_matches;
+    for (auto &matcher : matchers)
+        next_matches.push_back(matcher.find_next());
+
     auto const done = [&] {
-        for (int i = 0; i < 3; i++)
-            if (next_matches[i]) return false;
+        for (auto const *p : next_matches) {
+            if (p) return false;
+        }
         return true;
     };
 
@@ -216,7 +213,7 @@ int main(int argc, char **argv) {
         auto const next_match_ = std::min_element(std::begin(next_matches),
             std::end(next_matches),
             [](BeginEnd *a, BeginEnd *b) { return a && b ? a->first < b->first : bool(a); });
-        size_t const match_idx = static_cast<size_t>(next_match_ - next_matches);
+        size_t const match_idx = static_cast<size_t>(next_match_ - next_matches.begin());
         auto const next_match = *next_match_;
 
         auto strstart = test_string_sv.data() + next_match->first;
@@ -224,7 +221,7 @@ int main(int argc, char **argv) {
         std::string_view nomatch {prev_end, strstart};
         std::string_view match {strstart, len};
         fmt::print("{}", nomatch);
-        fmt::print(fg(cols[match_idx]), "{}", match);
+        fmt::print(fg(args.cols[match_idx]), "{}", match);
         prev_end = strstart + len;
         next_matches[match_idx] = matchers[match_idx].find_next();
     }

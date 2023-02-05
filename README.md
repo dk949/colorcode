@@ -6,6 +6,13 @@
 
 Colourise input based on a regular expression. Like grep, but more colourful.
 
+
+## TODO
+
+* [ ] Crashes with certain nested matches
+  * `echo "abcde" | colorcode -blue:'abcde' -red:'bcd' -orange:'d'`
+  * `echo "abcde" | colorcode -blue:'abcde' -red:'a' -orange:'abcde'`
+
 ## Build
 
 ```sh

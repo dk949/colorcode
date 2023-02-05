@@ -1,7 +1,7 @@
 # colorcode
 
 <div align="center">
-  <img src="https://github.com/dk949/colorcode/blob/trunk/screenshot_0.png" width=75% alt="Screenshot"/>
+  <img src="https://github.com/dk949/colorcode/blob/trunk/screenshot.png" width=75% alt="Screenshot"/>
 </div>
 
 Colourise input based on a regular expression. Like grep, but more colourful.

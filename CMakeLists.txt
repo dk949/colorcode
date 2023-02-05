@@ -19,3 +19,5 @@ include(cmake/sanitizers.cmake)
 
 add_subdirectory(src)
 add_subdirectory(project_config)
+
+install(TARGETS ${EXE_NAME})

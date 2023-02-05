@@ -100,7 +100,6 @@ public:
                             }
                             fmt::color col = str_to_color(argv[i]);
                             res.push_back(argv[i] + col_pos);
-                            fmt::print("argv[i] = {}, col_pos = {}\n", argv[i], col_pos);
                             cols.push_back(col);
                         }
                         break;

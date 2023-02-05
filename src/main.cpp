@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <span>
@@ -15,18 +16,6 @@
 
 constexpr auto utf8_mask = 0xc0;
 constexpr auto utf8_continue = 0x80;
-
-char const *test_string =
-    R"(lemon ipsum dolor sit amet, consectetur apple elit. Integer malesuada lorem at aliquet convallis. Ut porta convallis tincidunt. Aenean lemon fermentum arcu, in molestie orange Mauris purus massa, lobortis sit amet apple apple cursus a purus. Maecenas consequat orci apple leo hendrerit lemon Sed interdum libero sed nulla sodales tincidunt. lemon Apple nulla erat, a lobortis sapien sollicitudin orange Apple Vestibulum gravida aliquam ullamcorper. Proin porta magna non ex Orange cursus porta magna tristique. Donec porttitor mi vel ex Orange eget aliquet massa condimentum. Fusce a Orange vitae tellus Orange lemon sed eu ipsum. Lemon et orange at dolor venenatis posuere. Aliquam posuere orange justo sed elementum. Etiam orange augue, malesuada eu Orange a, suscipit in lemon lemon orange sed ex a faucibus."
-
-Aliquam viverra lacus eget apple aliquam. Vestibulum finibus dignissim diam nec interdum. apple vulputate in Apple id consequat. Proin Orange dolor eget consequat consectetur, metus elit convallis ex, et porta leo mi orange mi. Phasellus at ante orange Cras vulputate, quam sed viverra lobortis, lemon libero consequat ligula, eu imperdiet quam augue vel Apple Vivamus placerat gravida lorem sit amet tincidunt. Proin vulputate bibendum nulla et vestibulum. Proin aliquet Lemon a vulputate iaculis.
-
-Etiam dictum tortor ut Lemon congue, in Apple felis Orange orange pulvinar orange nulla nec congue. Suspendisse ut orange lemon ante facilisis pretium at apple tortor. Ut sit amet purus ornare, pretium justo Orange faucibus enim. Donec lectus urna, dapibus vel rhoncus Apple Orange Apple Orange lemon ut Lemon purus. apple volutpat venenatis semper. In hac habitasse platea dictumst. Phasellus orange ante et Orange porta, purus sem hendrerit Lemon eu tincidunt elit orci Apple urna. apple condimentum efficitur consequat. Etiam consectetur turpis vel interdum eleifend. lemon vulputate libero apple auctor facilisis. In vel lorem et ante faucibus fringilla. lemon sodales in arcu Apple tincidunt. Duis semper, tortor ac venenatis Orange Orange ante placerat Lemon ut rhoncus purus orci non ante.
-
-Cras euismod apple Lemon purus Orange suscipit. Phasellus nunc arcu, commodo a libero Orange lemon Lemon est. Suspendisse sed magna leo. Morbi aliquam viverra metus id pharetra. Interdum et malesuada Orange lemon ante ipsum primis in faucibus. In lacinia, neque ut orange ornare, nibh lemon laoreet Lemon eget venenatis sem nunc Lemon quam. Nulla faucibus justo Apple Apple pulvinar varius. Donec accumsan orange Apple laoreet euismod. Donec fringilla ornare apple Orange gravida odio vitae Orange aliquet. Praesent laoreet, erat nec finibus lemon elit erat Orange dui, et lemon nisl urna a orci. Apple Orange nibh sit lemon Lemon posuere, ipsum Lemon ullamcorper leo, eu dapibus augue felis ac tellus. Vestibulum in orci at magna scelerisque commodo.
-Apple
-Ut lemon nibh ante. Mauris efficitur diam Lemon urna tristique pellentesque quis sit amet lemon Sed in Lemon orange Curabitur Orange nibh posuere, consequat erat sed, Orange ante. Morbi consectetur magna a Lemon lemon sed aliquet Apple Lemon Suspendisse sit amet quam Lemon lemon turpis ut, luctus diam. Integer orange Apple et diam Lemon aliquam ac Orange mi. Apple eu auctor tortor. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lemon maximus Lemon vitae purus luctus sodales. Donec vel tristique diam. apple nisl lectus, blandit nec pretium non, lemon sit amet lacus.
-)";
 
 using Code = std::unique_ptr<pcre2_code, decltype(pcre2_code_free) *>;
 using MatchData = std::unique_ptr<pcre2_match_data, decltype(pcre2_match_data_free) *>;
@@ -103,7 +92,7 @@ private:
     pcre2_code *m_code;
     pcre2_match_data *m_data;
     std::string_view m_subj;
-    BeginEnd *m_ovec;
+    BeginEnd *m_ovec = nullptr;
     bool m_is_utf;
     bool m_crlf;
     bool m_first_match = true;
@@ -113,8 +102,7 @@ public:
             : m_code(code)
             , m_data(data)
             , m_subj(subj) {
-        if (find_match(m_code, m_data, m_subj) == PCRE2_ERROR_NOMATCH) fmt::print("Not handled\n");
-        // error<Err::INTERNAL>("Not handled");
+        if (find_match(m_code, m_data, m_subj) == PCRE2_ERROR_NOMATCH) return;
         m_ovec = get_ovec_no_cap(m_data);
         m_is_utf = is_code_opt_set(m_code, PCRE2_UTF);
         m_crlf = [&, nl = get_code_opt(m_code, PCRE2_INFO_NEWLINE)] {
@@ -128,6 +116,7 @@ public:
             m_first_match = false;
             return m_ovec;
         }
+        assert(m_ovec);
 start:
         std::uint32_t opts = 0;
         auto offs = m_ovec->second;
@@ -169,8 +158,7 @@ start:
             goto start;  // FIXME: AAAAAAAAA
         }
         // Successful match
-        if (m_ovec->first > m_ovec->second)
-            error<Err::PATTERN>("\\K was used len, to set the match start after the end");
+        if (m_ovec->first > m_ovec->second) error<Err::PATTERN>("\\K was used to set the match start after the end");
 
         return m_ovec;
     }
@@ -178,8 +166,12 @@ start:
 
 int main(int argc, char **argv) {
     auto const args = Args(argc, argv);
-    auto const test_string_sv = std::string_view {test_string};
-    fmt::print("res = {}\n", fmt::join(args.res, ", "));
+    std::istream *file = nullptr;
+    if (args.input_file) {
+        file = new std::ifstream(*args.input_file);
+    } else {
+        file = &std::cin;
+    }
 
     // Make codes from regex strings
     std::vector<Code> codes;
@@ -191,40 +183,43 @@ int main(int argc, char **argv) {
     for (auto const &code : codes)
         data.emplace_back(make_match_data(code.get()));
 
+    std::string line;
+    while (std::getline(*file, line)) {
+        // Create matchers for each code
+        std::vector<Mathcher> matchers;
+        for (size_t i = 0; i < codes.size(); i++)
+            matchers.emplace_back(codes[i].get(), data[i].get(), line);
 
-    // Create matchers for each code
-    std::vector<Mathcher> matchers;
-    for (size_t i = 0; i < codes.size(); i++)
-        matchers.emplace_back(codes[i].get(), data[i].get(), test_string_sv);
+        std::vector<BeginEnd *> next_matches;
+        for (auto &matcher : matchers)
+            next_matches.push_back(matcher.find_next());
 
-    std::vector<BeginEnd *> next_matches;
-    for (auto &matcher : matchers)
-        next_matches.push_back(matcher.find_next());
+        auto const done = [&] {
+            for (auto const *p : next_matches) {
+                if (p) return false;
+            }
+            return true;
+        };
 
-    auto const done = [&] {
-        for (auto const *p : next_matches) {
-            if (p) return false;
+        char const *prev_end = line.data();
+        while (!done()) {
+            auto const next_match_ = std::min_element(std::begin(next_matches),
+                std::end(next_matches),
+                [](BeginEnd *a, BeginEnd *b) { return a && b ? a->first < b->first : bool(a); });
+            size_t const match_idx = static_cast<size_t>(next_match_ - next_matches.begin());
+            auto const next_match = *next_match_;
+
+            auto strstart = line.data() + next_match->first;
+            auto len = next_match->second - next_match->first;
+            std::string_view nomatch {prev_end, strstart};
+            std::string_view match {strstart, len};
+            fmt::print("{}", nomatch);
+            fmt::print(fg(args.cols[match_idx]), "{}", match);
+            prev_end = strstart + len;
+            next_matches[match_idx] = matchers[match_idx].find_next();
         }
-        return true;
-    };
-
-    char const *prev_end = test_string_sv.data();
-    while (!done()) {
-        auto const next_match_ = std::min_element(std::begin(next_matches),
-            std::end(next_matches),
-            [](BeginEnd *a, BeginEnd *b) { return a && b ? a->first < b->first : bool(a); });
-        size_t const match_idx = static_cast<size_t>(next_match_ - next_matches.begin());
-        auto const next_match = *next_match_;
-
-        auto strstart = test_string_sv.data() + next_match->first;
-        auto len = next_match->second - next_match->first;
-        std::string_view nomatch {prev_end, strstart};
-        std::string_view match {strstart, len};
-        fmt::print("{}", nomatch);
-        fmt::print(fg(args.cols[match_idx]), "{}", match);
-        prev_end = strstart + len;
-        next_matches[match_idx] = matchers[match_idx].find_next();
+        std::string_view rest {prev_end, line.end().base()};
+        fmt::print("{}\n", rest);
     }
-    std::string_view rest {prev_end, test_string_sv.end()};
-    fmt::print("{}", rest);
+    if (file != &std::cin) delete file;
 }
